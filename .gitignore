@@ -1,0 +1,34 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform variable files containing secrets
+*.tfvars
+!terraform.tfvars.example
+
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# AWS CLI
+.aws/
+
+# Environment files
+.env
+.env.*
+
+# Shell scripts
+*.swp
