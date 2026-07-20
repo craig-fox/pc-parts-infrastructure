@@ -1,0 +1,3 @@
+bucket_name = "replace-with-your-bucket-name"
+
+environment = "dev"
