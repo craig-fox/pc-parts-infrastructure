@@ -49,6 +49,75 @@ This includes:
 - CloudFront distribution
 - Supporting AWS resources
 
+## Running pc-parts-store-ui
+### Prerequisites
+
+Before deploying, ensure you have the following installed:
+
+Terraform 1.6 or later
+AWS CLI v2
+Node.js 22 or later
+npm
+
+You will also need:
+
+An AWS account
+AWS credentials configured locally (for example using aws configure)
+Permission to create S3, CloudFront and IAM resources
+
+### Clone the repositories
+
+Clone both repositories into the same parent directory:
+
+projects/
+├── pc-parts-infrastructure/
+└── pc-parts-store-ui/
+Configure AWS
+
+Verify that your credentials are working:
+
+aws sts get-caller-identity
+### Deploy the infrastructure
+
+From the terraform directory:
+
+terraform init
+terraform plan
+terraform apply
+
+Terraform will provision the required AWS resources and output values including the CloudFront URL.
+
+### Deploy the frontend
+
+From the root of the infrastructure repository:
+
+./scripts/deploy-frontend.sh
+
+The deployment script will:
+
+Build the React application.
+Upload the production build to the S3 bucket.
+Create a CloudFront invalidation.
+Display the CloudFront URL.
+
+After the deployment completes, open the displayed CloudFront URL in your browser.
+
+### Updating the application
+
+Whenever changes are made to the React application:
+
+./scripts/deploy-frontend.sh
+
+The script rebuilds the application, uploads the changed files, and refreshes the CloudFront cache.
+
+### Destroying the infrastructure
+
+To remove all AWS resources created by Terraform:
+
+terraform destroy
+
+Ensure the S3 bucket is empty before destroying the infrastructure if Terraform reports that the bucket cannot be deleted.
+
 ## Future Enhancements
 
 As the backend evolves, this repository will also provision infrastructure for:
