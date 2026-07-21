@@ -4,6 +4,24 @@ Infrastructure as Code (IaC) for the PC Parts Store project.
 
 This repository contains the Terraform configuration and deployment scripts used to provision and manage the AWS infrastructure that supports the application.
 
+## Quick Start
+
+Create a project structure like this
+
+pc-parts/
+├── pc-parts-infrastructure/
+└── pc-parts-store-ui/
+
+git clone https://github.com/craig-fox/pc-parts-store-ui.git
+git clone https://github.com/craig-fox/pc-parts-infrastructure.git
+
+cd pc-parts-infrastructure/terraform
+terraform init
+terraform apply
+
+cd ..
+./scripts/deploy-frontend.sh
+
 ## Repositories
 
 The PC Parts Store project is split across three repositories:

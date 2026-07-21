@@ -1,5 +1,6 @@
 resource "aws_s3_bucket" "frontend" {
   bucket = local.frontend_bucket_name
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_versioning" "frontend" {
