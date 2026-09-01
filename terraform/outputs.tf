@@ -37,3 +37,11 @@ output "private_subnet_ids" {
   description = "IDs of the private subnets."
   value       = aws_subnet.private[*].id
 }
+
+output "ecr_repository_urls" {
+  description = "ECR repository URLs for application services."
+  value = {
+    for service, repository in aws_ecr_repository.service :
+    service => repository.repository_url
+  }
+}
