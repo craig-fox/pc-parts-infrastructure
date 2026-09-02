@@ -32,3 +32,9 @@ variable "component" {
   type        = string
   default     = "frontend"
 }
+
+variable "image_tag" {
+  description = "Docker image tag to deploy."
+  type        = string
+  default     = "latest"
+}

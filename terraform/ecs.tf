@@ -119,7 +119,7 @@ resource "aws_ecs_task_definition" "product" {
   container_definitions = jsonencode([
     {
       name  = "product-service"
-      image = "${aws_ecr_repository.service["product"].repository_url}:aws-test-1"
+      image = "${aws_ecr_repository.service["product"].repository_url}:${var.image_tag}"
 
       essential = true
 
