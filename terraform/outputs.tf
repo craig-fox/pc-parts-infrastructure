@@ -85,3 +85,13 @@ output "nat_gateway_id" {
   description = "ID of the NAT gateway used by private subnets."
   value       = aws_nat_gateway.main.id
 }
+
+output "alb_dns_name" {
+  description = "DNS name of the application load balancer."
+  value       = aws_lb.main.dns_name
+}
+
+output "alb_url" {
+  description = "HTTP URL of the application load balancer."
+  value       = "http://${aws_lb.main.dns_name}"
+}

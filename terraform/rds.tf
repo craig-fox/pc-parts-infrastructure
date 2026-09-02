@@ -20,30 +20,6 @@ resource "aws_security_group" "rds" {
   }
 }
 
-# RDS master credentials
-resource "aws_secretsmanager_secret" "rds_master" {
-  name = "${local.resource_prefix}/rds/master"
-
-  tags = {
-    Name = "${local.resource_prefix}-rds-master-secret"
-  }
-}
-
-resource "random_password" "rds_master" {
-  length           = 32
-  special          = true
-  override_special = "!#$%&*+-=?@^_"
-}
-
-resource "aws_secretsmanager_secret_version" "rds_master" {
-  secret_id = aws_secretsmanager_secret.rds_master.id
-
-  secret_string = jsonencode({
-    username = "postgres"
-    password = random_password.rds_master.result
-  })
-}
-
 # RDS PostgreSQL instance
 resource "aws_db_instance" "postgres" {
   identifier = "${local.resource_prefix}-postgres"
