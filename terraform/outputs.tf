@@ -75,3 +75,13 @@ output "ecs_security_group_id" {
   description = "Security group ID for ECS tasks."
   value       = aws_security_group.ecs.id
 }
+
+output "product_task_definition_arn" {
+  description = "ARN of the product-service ECS task definition."
+  value       = aws_ecs_task_definition.product.arn
+}
+
+output "nat_gateway_id" {
+  description = "ID of the NAT gateway used by private subnets."
+  value       = aws_nat_gateway.main.id
+}

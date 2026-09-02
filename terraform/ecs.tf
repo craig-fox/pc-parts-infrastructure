@@ -104,3 +104,89 @@ resource "aws_vpc_security_group_ingress_rule" "rds_postgres_from_ecs" {
   ip_protocol = "tcp"
 }
 
+# Fargate definition for product-service
+resource "aws_ecs_task_definition" "product" {
+  family                   = "${local.resource_prefix}-product-service"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+
+  cpu    = 256
+  memory = 512
+
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "product-service"
+      image = "${aws_ecr_repository.service["product"].repository_url}:aws-test-1"
+
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "SPRING_DATASOURCE_URL"
+          value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/pcparts"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "SPRING_DATASOURCE_USERNAME"
+          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:username::"
+        },
+        {
+          name      = "SPRING_DATASOURCE_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "product-service"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${local.resource_prefix}-product-service"
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_execution_secrets" {
+  name = "${local.resource_prefix}-ecs-execution-secrets"
+
+  role = aws_iam_role.ecs_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+
+        Resource = aws_secretsmanager_secret.rds_master.arn
+      }
+    ]
+  })
+}
+
+
+
