@@ -1,5 +1,6 @@
 resource "aws_secretsmanager_secret" "rds_master" {
-  name = "${local.resource_prefix}/rds/master"
+  name                    = "${local.resource_prefix}/rds/master"
+  recovery_window_in_days = 0
 
   tags = {
     Name = "${local.resource_prefix}-rds-master-secret"
@@ -9,7 +10,7 @@ resource "aws_secretsmanager_secret" "rds_master" {
 resource "random_password" "rds_master" {
   length           = 32
   special          = true
-  override_special = "!#$%&*+-=?@^_"
+  override_special = "!#$%&*+-=?^_"
 }
 
 resource "aws_secretsmanager_secret_version" "rds_master" {
@@ -23,7 +24,8 @@ resource "aws_secretsmanager_secret_version" "rds_master" {
 
 
 resource "aws_secretsmanager_secret" "jwt" {
-  name = "${local.resource_prefix}/jwt"
+  name                    = "${local.resource_prefix}/jwt"
+  recovery_window_in_days = 0
 
   tags = {
     Name = "${local.resource_prefix}-jwt-secret"
