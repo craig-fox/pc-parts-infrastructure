@@ -146,6 +146,10 @@ resource "aws_ecs_task_definition" "product" {
         {
           name      = "SPRING_DATASOURCE_PASSWORD"
           valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = aws_secretsmanager_secret.jwt.arn
         }
       ]
 
@@ -166,26 +170,40 @@ resource "aws_ecs_task_definition" "product" {
   }
 }
 
-resource "aws_iam_role_policy" "ecs_execution_secrets" {
-  name = "${local.resource_prefix}-ecs-execution-secrets"
 
-  role = aws_iam_role.ecs_execution.id
+# product ecs service
+resource "aws_ecs_service" "product" {
+  name            = "${local.resource_prefix}-product-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.product.arn
 
-  policy = jsonencode({
-    Version = "2012-10-17"
+  desired_count = 1
 
-    Statement = [
-      {
-        Effect = "Allow"
+  launch_type = "FARGATE"
 
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
+  network_configuration {
+    subnets = aws_subnet.private[*].id
 
-        Resource = aws_secretsmanager_secret.rds_master.arn
-      }
+    security_groups = [
+      aws_security_group.ecs.id
     ]
-  })
+
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.product.arn
+    container_name   = "product-service"
+    container_port   = 8080
+  }
+
+  depends_on = [
+    aws_lb_listener.http
+  ]
+
+  tags = {
+    Name = "${local.resource_prefix}-product-service"
+  }
 }
 
 
