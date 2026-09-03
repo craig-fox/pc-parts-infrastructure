@@ -106,12 +106,16 @@ resource "aws_vpc_security_group_ingress_rule" "rds_postgres_from_ecs" {
 
 # Fargate definition for product-service
 resource "aws_ecs_task_definition" "product" {
-  family                   = "${local.resource_prefix}-product-service"
+    family                   = "${local.resource_prefix}-product-service"
   requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
+  network_mode              = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
 
-  cpu    = 256
-  memory = 512
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
 
   execution_role_arn = aws_iam_role.ecs_execution.arn
   task_role_arn      = aws_iam_role.ecs_task.arn
@@ -178,16 +182,11 @@ resource "aws_ecs_service" "product" {
   task_definition = aws_ecs_task_definition.product.arn
 
   desired_count = 1
-
-  launch_type = "FARGATE"
+  launch_type   = "FARGATE"
 
   network_configuration {
-    subnets = aws_subnet.private[*].id
-
-    security_groups = [
-      aws_security_group.ecs.id
-    ]
-
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
 
@@ -195,6 +194,10 @@ resource "aws_ecs_service" "product" {
     target_group_arn = aws_lb_target_group.product.arn
     container_name   = "product-service"
     container_port   = 8080
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.product.arn
   }
 
   depends_on = [
