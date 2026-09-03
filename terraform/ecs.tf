@@ -243,6 +243,10 @@ resource "aws_ecs_task_definition" "gateway" {
         {
           name  = "PRODUCT_SERVICE_URL"
           value = "http://product-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
+        },
+        {
+          name  = "CUSTOMER_SERVICE_URL"
+          value = "http://customer-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
         }
       ]
 
@@ -289,4 +293,115 @@ resource "aws_ecs_service" "gateway" {
 }
 
 
+# Fargate definition for customer-service
+resource "aws_ecs_task_definition" "customer" {
+  family                   = "${local.resource_prefix}-customer-service"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "customer-service"
+      image = "${aws_ecr_repository.service["customer"].repository_url}:${var.customer_image_tag}"
+
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "SPRING_DATASOURCE_URL"
+          value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/pcparts"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "SPRING_DATASOURCE_USERNAME"
+          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:username::"
+        },
+        {
+          name      = "SPRING_DATASOURCE_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = aws_secretsmanager_secret.jwt.arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "customer-service"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${local.resource_prefix}-customer-service"
+  }
+}
+
+resource "aws_ecs_service" "customer" {
+  name            = "${local.resource_prefix}-customer-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.customer.arn
+
+  desired_count = 1
+  launch_type   = "FARGATE"
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.customer.arn
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-customer-service"
+  }
+}
+
+resource "aws_service_discovery_service" "customer" {
+  name = "customer-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-customer-service-discovery"
+  }
+}
 

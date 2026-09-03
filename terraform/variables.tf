@@ -44,3 +44,10 @@ variable "gateway_image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "customer_image_tag" {
+  description = "Docker image tag for customer-service."
+  type        = string
+  default     = "latest"
+}
+
