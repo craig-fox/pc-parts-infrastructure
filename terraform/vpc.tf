@@ -109,3 +109,14 @@ resource "aws_nat_gateway" "main" {
     aws_internet_gateway.main
   ]
 }
+
+resource "aws_vpc_security_group_ingress_rule" "ecs_from_ecs" {
+  security_group_id            = aws_security_group.ecs.id
+  referenced_security_group_id = aws_security_group.ecs.id
+
+  ip_protocol = "tcp"
+  from_port   = 8080
+  to_port     = 8080
+
+  description = "Allow ECS services to communicate with each other."
+}

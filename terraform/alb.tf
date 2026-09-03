@@ -94,23 +94,42 @@ resource "aws_lb_listener" "http" {
 }
 
 
-resource "aws_lb_listener_rule" "product" {
+resource "aws_lb_target_group" "gateway" {
+  name        = "${var.project_name}-${var.environment}-gateway"
+  port        = 8080
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.main.id
+
+  health_check {
+    enabled             = true
+    path                = "/actuator/health"
+    protocol            = "HTTP"
+    port                = "traffic-port"
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+    matcher             = "200"
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-gateway"
+  }
+}
+
+resource "aws_lb_listener_rule" "gateway" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 100
 
   action {
-    type = "forward"
-
-    forward {
-      target_group {
-        arn = aws_lb_target_group.product.arn
-      }
-    }
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.gateway.arn
   }
 
   condition {
     path_pattern {
-      values = ["/api/products*"]
+      values = ["/api/*"]
     }
   }
 }

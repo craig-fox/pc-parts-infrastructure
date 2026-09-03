@@ -33,8 +33,14 @@ variable "component" {
   default     = "frontend"
 }
 
-variable "image_tag" {
-  description = "Docker image tag to deploy."
+variable "product_image_tag" {
+  description = "Docker image tag for product-service."
+  type        = string
+  default     = "latest"
+}
+
+variable "gateway_image_tag" {
+  description = "Docker image tag for api-gateway."
   type        = string
   default     = "latest"
 }
