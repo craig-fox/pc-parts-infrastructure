@@ -27,16 +27,6 @@ echo ""
 echo "Image tag: ${IMAGE_TAG}"
 echo ""
 
-# ----------------------------------------
-# Terraform
-# ----------------------------------------
-
-echo "Applying infrastructure..."
-echo ""
-
-terraform -chdir="${TERRAFORM_DIR}" apply
-
-echo ""
 
 # ----------------------------------------
 # ECR authentication
@@ -145,4 +135,4 @@ echo "Frontend URL:"
 terraform -chdir="${TERRAFORM_DIR}" output frontend_url
 
 echo ""
-```
+
