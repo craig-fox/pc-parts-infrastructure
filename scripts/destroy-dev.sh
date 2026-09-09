@@ -37,30 +37,14 @@ if [[ "${confirmation}" != "destroy-dev" ]]; then
 fi
 
 echo ""
-echo "Planning destruction..."
+echo "Planning and destroying development environment..."
 echo ""
 
 terraform -chdir="${TERRAFORM_DIR}" destroy \
     -var="environment=dev"
 
 echo ""
-read -r -p "Proceed with destruction? [y/N] " confirmation
 
-if [[ ! "${confirmation}" =~ ^[Yy]$ ]]; then
-    echo ""
-    echo "Teardown cancelled."
-    exit 0
-fi
-
-echo ""
-echo "Destroying development environment..."
-echo ""
-
-terraform -chdir="${TERRAFORM_DIR}" destroy \
-    -var="environment=dev" \
-    -auto-approve
-
-echo ""
 echo "========================================"
 echo "Development environment destroyed."
 echo "========================================"

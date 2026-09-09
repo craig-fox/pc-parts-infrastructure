@@ -13,6 +13,10 @@ resource "aws_cloudfront_distribution" "frontend" {
   comment             = "PC Parts Store frontend"
   default_root_object = "index.html"
 
+  aliases = [
+    "pcparts.craigfox.dev"
+  ]
+
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id                = aws_s3_bucket.frontend.id
@@ -63,7 +67,9 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.cloudfront.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   price_class = "PriceClass_100"

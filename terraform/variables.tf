@@ -36,11 +36,20 @@ variable "component" {
 variable "product_image_tag" {
   description = "Docker image tag for product-service."
   type        = string
-  default     = "latest"
 }
 
 variable "gateway_image_tag" {
   description = "Docker image tag for api-gateway."
   type        = string
-  default     = "latest"
 }
+
+variable "customer_image_tag" {
+  description = "Docker image tag for customer-service."
+  type        = string
+}
+
+variable "authentication_image_tag" {
+  description = "Docker image tag for authentication-service."
+  type        = string
+}
+

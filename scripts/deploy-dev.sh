@@ -27,16 +27,6 @@ echo ""
 echo "Image tag: ${IMAGE_TAG}"
 echo ""
 
-# ----------------------------------------
-# Terraform
-# ----------------------------------------
-
-echo "Applying infrastructure..."
-echo ""
-
-terraform -chdir="${TERRAFORM_DIR}" apply
-
-echo ""
 
 # ----------------------------------------
 # ECR authentication
@@ -75,7 +65,7 @@ deploy_service() {
     echo ""
     echo "Building Docker image..."
     docker build \
-        --platform linux/amd64 \
+        --platform linux/arm64 \
         -t "${repository_url}:${IMAGE_TAG}" \
         "${service_dir}"
 
@@ -86,13 +76,24 @@ deploy_service() {
     echo ""
 }
 
-# Product service is currently the only deployed backend service.
+# Backend services currently deployed.
+
 deploy_service \
     "product-service" \
     "pc-parts-store-product-service"
 
+deploy_service \
+    "customer-service" \
+    "pc-parts-store-customer-service"
+
+deploy_service \
+    "api-gateway" \
+    "pc-parts-store-api-gateway"
+
 terraform -chdir="${TERRAFORM_DIR}" apply \
-    -var="image_tag=${IMAGE_TAG}"
+    -var="product_image_tag=${IMAGE_TAG}" \
+    -var="customer_image_tag=${IMAGE_TAG}" \
+    -var="gateway_image_tag=${IMAGE_TAG}"
 
 BUCKET_NAME="$(terraform -chdir="${TERRAFORM_DIR}" output -raw bucket_name)"
 DISTRIBUTION_ID="$(terraform -chdir="${TERRAFORM_DIR}" output -raw cloudfront_distribution_id)"
@@ -134,4 +135,4 @@ echo "Frontend URL:"
 terraform -chdir="${TERRAFORM_DIR}" output frontend_url
 
 echo ""
-```
+
