@@ -137,6 +137,10 @@ resource "aws_ecs_task_definition" "product" {
 
       environment = [
         {
+          name  = "SPRING_PROFILES_ACTIVE"
+          value = "prod"
+        },
+        {
           name  = "SPRING_DATASOURCE_URL"
           value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/productdb"
         }
@@ -230,7 +234,7 @@ resource "aws_ecs_task_definition" "gateway" {
       ]
 
       environment = [
-         {
+        {
           name  = "AUTHENTICATION_SERVICE_URL"
           value = "http://authentication-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
         },
@@ -323,6 +327,10 @@ resource "aws_ecs_task_definition" "customer" {
       ]
 
       environment = [
+        {
+          name  = "SPRING_PROFILES_ACTIVE"
+          value = "prod"
+        },
         {
           name  = "SPRING_DATASOURCE_URL"
           value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/customerdb"
