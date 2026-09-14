@@ -25,6 +25,7 @@ echo "========================================"
 echo ""
 
 echo "Image tag: ${IMAGE_TAG}"
+echo "Deploying development infrastructure and applications
 echo ""
 
 
@@ -94,6 +95,17 @@ terraform -chdir="${TERRAFORM_DIR}" apply \
     -var="product_image_tag=${IMAGE_TAG}" \
     -var="customer_image_tag=${IMAGE_TAG}" \
     -var="gateway_image_tag=${IMAGE_TAG}"
+
+echo "========================================"
+echo "Bootstrapping databases"
+echo "========================================"
+echo ""
+
+"${SCRIPT_DIR}/bootstrap-db.sh"
+
+echo ""
+
+
 
 BUCKET_NAME="$(terraform -chdir="${TERRAFORM_DIR}" output -raw bucket_name)"
 DISTRIBUTION_ID="$(terraform -chdir="${TERRAFORM_DIR}" output -raw cloudfront_distribution_id)"
