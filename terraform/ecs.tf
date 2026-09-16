@@ -245,6 +245,10 @@ resource "aws_ecs_task_definition" "gateway" {
         {
           name  = "CUSTOMER_SERVICE_URL"
           value = "http://customer-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
+        },
+        {
+          name  = "ORDER_SERVICE_URL"
+          value = "http://order-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
         }
       ]
 
@@ -534,5 +538,147 @@ resource "aws_ecs_service" "authentication" {
 
   tags = {
     Name = "${local.resource_prefix}-authentication-service"
+  }
+}
+
+# Fargate definition for order-service
+resource "aws_ecs_task_definition" "order" {
+  family                   = "${local.resource_prefix}-order-service"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "order-service"
+      image = "${aws_ecr_repository.service["order"].repository_url}:${var.order_image_tag}"
+
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "SPRING_PROFILES_ACTIVE"
+          value = "prod"
+        },
+        {
+          name  = "SPRING_DATASOURCE_URL"
+          value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/orderdb"
+        },
+        {
+          name  = "SERVER_PORT"
+          value = "8080"
+        },
+        {
+          name  = "CUSTOMER_SERVICE_URL"
+          value = "http://customer-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
+        },
+        {
+          name  = "PRODUCT_SERVICE_URL"
+          value = "http://product-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
+        },
+        {
+          name  = "INVENTORY_SERVICE_URL"
+          value = "http://inventory-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
+        },
+        {
+          name  = "PAYMENT_SERVICE_URL"
+          value = "http://payment-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
+        },
+        {
+          name  = "SHIPPING_SERVICE_URL"
+          value = "http://shipping-service.${aws_service_discovery_private_dns_namespace.main.name}:8080"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "SPRING_DATASOURCE_USERNAME"
+          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:username::"
+        },
+        {
+          name      = "SPRING_DATASOURCE_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = aws_secretsmanager_secret.jwt.arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "order-service"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${local.resource_prefix}-order-service"
+  }
+}
+
+# Order ECS service
+resource "aws_ecs_service" "order" {
+  name            = "${local.resource_prefix}-order-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.order.arn
+
+  desired_count = 1
+  launch_type   = "FARGATE"
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.order.arn
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-order-service"
+  }
+}
+
+# Cloud Map service for order-service
+resource "aws_service_discovery_service" "order" {
+  name = "order-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-order-service-discovery"
   }
 }

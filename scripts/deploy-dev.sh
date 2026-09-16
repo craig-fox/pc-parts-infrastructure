@@ -48,12 +48,18 @@ echo ""
 # Ensure ECR repositories are in Terraform state
 # ----------------------------------------
 
+TERRAFORM_STATE="$(terraform -chdir="${TERRAFORM_DIR}" state list)"
+
 ensure_ecr_repository() {
     local service_name="$1"
     local repository_name="$2"
     local resource_address="aws_ecr_repository.service[\"${service_name}\"]"
 
-    if terraform -chdir="${TERRAFORM_DIR}" state list | grep -Fqx "${resource_address}"; then
+    echo "DEBUG service_name=[${service_name}]"
+    echo "DEBUG resource_address=[${resource_address}]"
+    echo "DEBUG state:"
+
+    if printf '%s\n' "${TERRAFORM_STATE}" | grep -Fqx "${resource_address}"; then
         echo "  ${service_name}: already managed by Terraform"
         return
     fi
@@ -66,6 +72,11 @@ ensure_ecr_repository() {
         echo "  ${service_name}: importing existing ECR repository"
 
         terraform -chdir="${TERRAFORM_DIR}" import \
+            -var="product_image_tag=${IMAGE_TAG}" \
+            -var="customer_image_tag=${IMAGE_TAG}" \
+            -var="order_image_tag=${IMAGE_TAG}" \
+            -var="gateway_image_tag=${IMAGE_TAG}" \
+            -var="authentication_image_tag=${IMAGE_TAG}" \
             "${resource_address}" \
             "${repository_name}"
 
@@ -151,8 +162,16 @@ deploy_service \
     "pc-parts-store-product-service"
 
 deploy_service \
+    "authentication-service" \
+    "pc-parts-store-authentication-service"
+
+deploy_service \
     "customer-service" \
     "pc-parts-store-customer-service"
+
+deploy_service \
+    "order-service" \
+    "pc-parts-store-order-service"
 
 deploy_service \
     "api-gateway" \
@@ -160,7 +179,9 @@ deploy_service \
 
 terraform -chdir="${TERRAFORM_DIR}" apply \
     -var="product_image_tag=${IMAGE_TAG}" \
+    -var="authentication_image_tag=${IMAGE_TAG}" \
     -var="customer_image_tag=${IMAGE_TAG}" \
+    -var="order_image_tag=${IMAGE_TAG}" \
     -var="gateway_image_tag=${IMAGE_TAG}"
 
 echo "========================================"
