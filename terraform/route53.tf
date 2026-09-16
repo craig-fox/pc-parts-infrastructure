@@ -4,21 +4,33 @@ data "aws_route53_zone" "craigfox_dev" {
 }
 
 resource "aws_route53_record" "cloudfront_certificate_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.cloudfront.domain_validation_options :
-    dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
+  for_each = toset([
+    "pcparts.craigfox.dev"
+  ])
 
   zone_id = data.aws_route53_zone.craigfox_dev.zone_id
-  name    = each.value.name
-  type    = each.value.type
-  ttl     = 60
 
-  records = [each.value.record]
+  name = one([
+    for dvo in aws_acm_certificate.cloudfront.domain_validation_options :
+    dvo.resource_record_name
+    if dvo.domain_name == each.key
+  ])
+
+  type = one([
+    for dvo in aws_acm_certificate.cloudfront.domain_validation_options :
+    dvo.resource_record_type
+    if dvo.domain_name == each.key
+  ])
+
+  ttl = 60
+
+  records = [
+    one([
+      for dvo in aws_acm_certificate.cloudfront.domain_validation_options :
+      dvo.resource_record_value
+      if dvo.domain_name == each.key
+    ])
+  ]
 
   allow_overwrite = true
 }
@@ -59,21 +71,33 @@ resource "aws_route53_record" "api_pcparts" {
 }
 
 resource "aws_route53_record" "api_certificate_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.api.domain_validation_options :
-    dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
+  for_each = toset([
+    "api.pcparts.craigfox.dev"
+  ])
 
   zone_id = data.aws_route53_zone.craigfox_dev.zone_id
-  name    = each.value.name
-  type    = each.value.type
-  ttl     = 60
 
-  records = [each.value.record]
+  name = one([
+    for dvo in aws_acm_certificate.api.domain_validation_options :
+    dvo.resource_record_name
+    if dvo.domain_name == each.key
+  ])
+
+  type = one([
+    for dvo in aws_acm_certificate.api.domain_validation_options :
+    dvo.resource_record_type
+    if dvo.domain_name == each.key
+  ])
+
+  ttl = 60
+
+  records = [
+    one([
+      for dvo in aws_acm_certificate.api.domain_validation_options :
+      dvo.resource_record_value
+      if dvo.domain_name == each.key
+    ])
+  ]
 
   allow_overwrite = true
 }
