@@ -25,7 +25,7 @@ echo "========================================"
 echo ""
 
 echo "Image tag: ${IMAGE_TAG}"
-echo "Deploying development infrastructure and applications
+echo "Deploying development infrastructure and applications"
 echo ""
 
 
@@ -41,6 +41,73 @@ aws ecr get-login-password \
     docker login \
         --username AWS \
         --password-stdin "${ECR_REGISTRY}"
+
+echo ""
+
+# ----------------------------------------
+# Ensure ECR repositories are in Terraform state
+# ----------------------------------------
+
+ensure_ecr_repository() {
+    local service_name="$1"
+    local repository_name="$2"
+    local resource_address="aws_ecr_repository.service[\"${service_name}\"]"
+
+    if terraform -chdir="${TERRAFORM_DIR}" state list | grep -Fqx "${resource_address}"; then
+        echo "  ${service_name}: already managed by Terraform"
+        return
+    fi
+
+    if aws ecr describe-repositories \
+        --repository-names "${repository_name}" \
+        --region "${AWS_REGION}" \
+        >/dev/null 2>&1; then
+
+        echo "  ${service_name}: importing existing ECR repository"
+
+        terraform -chdir="${TERRAFORM_DIR}" import \
+            "${resource_address}" \
+            "${repository_name}"
+
+    else
+        echo "  ${service_name}: repository does not exist; Terraform will create it"
+    fi
+}
+
+echo "Checking ECR repositories..."
+echo ""
+
+ensure_ecr_repository \
+    "authentication" \
+    "pc-parts-store-authentication-service"
+
+ensure_ecr_repository \
+    "customer" \
+    "pc-parts-store-customer-service"
+
+ensure_ecr_repository \
+    "gateway" \
+    "pc-parts-store-api-gateway"
+
+ensure_ecr_repository \
+    "inventory" \
+    "pc-parts-store-inventory-service"
+
+ensure_ecr_repository \
+    "order" \
+    "pc-parts-store-order-service"
+
+ensure_ecr_repository \
+    "payment" \
+    "pc-parts-store-payment-service"
+
+ensure_ecr_repository \
+    "product" \
+    "pc-parts-store-product-service"
+
+ensure_ecr_repository \
+    "shipping" \
+    "pc-parts-store-shipping-service"
 
 echo ""
 
