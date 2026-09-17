@@ -53,6 +53,11 @@ variable "order_image_tag" {
   type        = string
 }
 
+variable "inventory_image_tag" {
+  description = "Docker image tag for inventory-service."
+  type        = string
+}
+
 variable "authentication_image_tag" {
   description = "Docker image tag for authentication-service."
   type        = string

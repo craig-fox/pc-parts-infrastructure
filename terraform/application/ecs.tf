@@ -81,7 +81,7 @@ resource "aws_cloudwatch_log_group" "ecs" {
 resource "aws_security_group" "ecs" {
   name        = "${local.resource_prefix}-ecs-sg"
   description = "Security group for ECS tasks."
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.terraform_remote_state.persistent.outputs.vpc_id
 
   tags = {
     Name = "${local.resource_prefix}-ecs-sg"
@@ -96,12 +96,21 @@ resource "aws_vpc_security_group_egress_rule" "ecs_all" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "rds_postgres_from_ecs" {
-  security_group_id            = aws_security_group.rds.id
+  security_group_id            = data.terraform_remote_state.persistent.outputs.rds_security_group_id
   referenced_security_group_id = aws_security_group.ecs.id
 
   from_port   = 5432
   to_port     = 5432
   ip_protocol = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ecs_from_ecs" {
+  security_group_id            = aws_security_group.ecs.id
+  referenced_security_group_id = aws_security_group.ecs.id
+  ip_protocol                  = "tcp"
+  from_port                   = 8080
+  to_port                     = 8080
+  description                 = "Allow ECS services to communicate with each other."
 }
 
 # Fargate definition for product-service
@@ -142,22 +151,22 @@ resource "aws_ecs_task_definition" "product" {
         },
         {
           name  = "SPRING_DATASOURCE_URL"
-          value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/productdb"
+          value = "jdbc:postgresql://${data.terraform_remote_state.persistent.outputs.rds_endpoint}:5432/productdb"
         }
       ]
 
       secrets = [
         {
           name      = "SPRING_DATASOURCE_USERNAME"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:username::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:username::"
         },
         {
           name      = "SPRING_DATASOURCE_PASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
         },
         {
           name      = "JWT_SECRET"
-          valueFrom = aws_secretsmanager_secret.jwt.arn
+          valueFrom = data.terraform_remote_state.persistent.outputs.jwt_secret_arn
         }
       ]
 
@@ -189,7 +198,7 @@ resource "aws_ecs_service" "product" {
   launch_type   = "FARGATE"
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
@@ -200,6 +209,109 @@ resource "aws_ecs_service" "product" {
 
   tags = {
     Name = "${local.resource_prefix}-product-service"
+  }
+}
+
+
+# Fargate definition for inventory-service
+resource "aws_ecs_task_definition" "inventory" {
+  family                   = "${local.resource_prefix}-inventory-service"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "inventory-service"
+      image = "${aws_ecr_repository.service["inventory"].repository_url}:${var.inventory_image_tag}"
+
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "SPRING_PROFILES_ACTIVE"
+          value = "prod"
+        },
+        {
+          name  = "SPRING_DATASOURCE_URL"
+          value = "jdbc:postgresql://${data.terraform_remote_state.persistent.outputs.rds_endpoint}:5432/inventorydb"
+        },
+        {
+          name  = "SERVER_PORT"
+          value = "8080"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "SPRING_DATASOURCE_USERNAME"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:username::"
+        },
+        {
+          name      = "SPRING_DATASOURCE_PASSWORD"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = data.terraform_remote_state.persistent.outputs.jwt_secret_arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "inventory-service"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${local.resource_prefix}-inventory-service"
+  }
+}
+
+# Inventory ECS service
+resource "aws_ecs_service" "inventory" {
+  name            = "${local.resource_prefix}-inventory-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.inventory.arn
+
+  desired_count = 1
+  launch_type   = "FARGATE"
+
+  network_configuration {
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.inventory.arn
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-inventory-service"
   }
 }
 
@@ -282,7 +394,7 @@ resource "aws_ecs_service" "gateway" {
   ]
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
@@ -337,22 +449,22 @@ resource "aws_ecs_task_definition" "customer" {
         },
         {
           name  = "SPRING_DATASOURCE_URL"
-          value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/customerdb"
+          value = "jdbc:postgresql://${data.terraform_remote_state.persistent.outputs.rds_endpoint}:5432/customerdb"
         }
       ]
 
       secrets = [
         {
           name      = "SPRING_DATASOURCE_USERNAME"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:username::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:username::"
         },
         {
           name      = "SPRING_DATASOURCE_PASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
         },
         {
           name      = "JWT_SECRET"
-          valueFrom = aws_secretsmanager_secret.jwt.arn
+          valueFrom = data.terraform_remote_state.persistent.outputs.jwt_secret_arn
         }
       ]
 
@@ -382,7 +494,7 @@ resource "aws_ecs_service" "customer" {
   launch_type   = "FARGATE"
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
@@ -453,7 +565,7 @@ resource "aws_ecs_task_definition" "authentication" {
         },
         {
           name  = "SPRING_DATASOURCE_URL"
-          value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/pcparts"
+          value = "jdbc:postgresql://${data.terraform_remote_state.persistent.outputs.rds_endpoint}:5432/pcparts"
         },
         {
           name  = "SERVER_PORT"
@@ -468,15 +580,15 @@ resource "aws_ecs_task_definition" "authentication" {
       secrets = [
         {
           name      = "SPRING_DATASOURCE_USERNAME"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:username::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:username::"
         },
         {
           name      = "SPRING_DATASOURCE_PASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
         },
         {
           name      = "JWT_SECRET"
-          valueFrom = aws_secretsmanager_secret.jwt.arn
+          valueFrom = data.terraform_remote_state.persistent.outputs.jwt_secret_arn
         }
       ]
 
@@ -527,7 +639,7 @@ resource "aws_ecs_service" "authentication" {
   launch_type   = "FARGATE"
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
@@ -579,7 +691,7 @@ resource "aws_ecs_task_definition" "order" {
         },
         {
           name  = "SPRING_DATASOURCE_URL"
-          value = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/orderdb"
+          value = "jdbc:postgresql://${data.terraform_remote_state.persistent.outputs.rds_endpoint}:5432/orderdb"
         },
         {
           name  = "SERVER_PORT"
@@ -610,15 +722,15 @@ resource "aws_ecs_task_definition" "order" {
       secrets = [
         {
           name      = "SPRING_DATASOURCE_USERNAME"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:username::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:username::"
         },
         {
           name      = "SPRING_DATASOURCE_PASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
         },
         {
           name      = "JWT_SECRET"
-          valueFrom = aws_secretsmanager_secret.jwt.arn
+          valueFrom = data.terraform_remote_state.persistent.outputs.jwt_secret_arn
         }
       ]
 
@@ -649,7 +761,7 @@ resource "aws_ecs_service" "order" {
   launch_type   = "FARGATE"
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }

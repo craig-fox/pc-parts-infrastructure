@@ -1,7 +1,7 @@
 resource "aws_security_group" "alb" {
   name        = "${local.resource_prefix}-alb-sg"
   description = "Security group for the application load balancer."
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.terraform_remote_state.persistent.outputs.vpc_id
 
   tags = {
     Name = "${local.resource_prefix}-alb-sg"
@@ -52,7 +52,7 @@ resource "aws_lb" "main" {
     aws_security_group.alb.id
   ]
 
-  subnets = aws_subnet.public[*].id
+  subnets = data.terraform_remote_state.persistent.outputs.public_subnet_ids
 
   tags = {
     Name = "${local.resource_prefix}-alb"
@@ -108,7 +108,7 @@ resource "aws_lb_target_group" "gateway" {
   port        = 8080
   protocol    = "HTTP"
   target_type = "ip"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.terraform_remote_state.persistent.outputs.vpc_id
 
   health_check {
     enabled             = true

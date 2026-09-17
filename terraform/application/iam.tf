@@ -47,8 +47,8 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
         "secretsmanager:GetSecretValue"
       ]
       Resource = [
-        aws_secretsmanager_secret.rds_master.arn,
-        aws_secretsmanager_secret.jwt.arn
+        data.terraform_remote_state.persistent.outputs.rds_secret_arn,
+        data.terraform_remote_state.persistent.outputs.jwt_secret_arn
       ]
     }]
   })
