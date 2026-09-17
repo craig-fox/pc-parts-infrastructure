@@ -32,3 +32,15 @@ override.tf.json
 
 # Shell scripts
 *.swp
+
+
+# Terraform state
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Legacy Terraform configuration/state
+terraform/legacy/
+
+# Local/state backups
+terraform/state-backups/

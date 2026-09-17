@@ -1,130 +1,68 @@
 #!/bin/bash
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 INFRA_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROJECT_DIR="$(cd "${INFRA_DIR}/.." && pwd)"
 
 API_DIR="${PROJECT_DIR}/pc-parts-store-api"
 UI_DIR="${PROJECT_DIR}/pc-parts-store-ui"
-TERRAFORM_DIR="${INFRA_DIR}/terraform"
+TERRAFORM_DIR="${INFRA_DIR}/terraform/application"
 
 AWS_REGION="ap-southeast-2"
 ECR_REGISTRY="530290262907.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-
-# Use the current Git commit as the immutable image tag.
 IMAGE_TAG="$(git -C "${API_DIR}" rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)"
 
-echo ""
+echo
 echo "========================================"
-echo "PC Parts Store - Development Deployment"
+echo " PC Parts Store - Dev Deployment"
 echo "========================================"
-echo ""
-
+echo
 echo "Image tag: ${IMAGE_TAG}"
-echo "Deploying development infrastructure and applications"
-echo ""
+echo
 
 
-# ----------------------------------------
-# ECR authentication
-# ----------------------------------------
+# ------------------------------------------------------------
+# AWS / ECR authentication
+# ------------------------------------------------------------
 
-echo "Logging in to ECR..."
-echo ""
+echo "==> Authenticating to ECR"
 
 aws ecr get-login-password \
-    --region "${AWS_REGION}" |
-    docker login \
+    --region "${AWS_REGION}" \
+    | docker login \
         --username AWS \
         --password-stdin "${ECR_REGISTRY}"
 
-echo ""
 
-# ----------------------------------------
-# Ensure ECR repositories are in Terraform state
-# ----------------------------------------
+# ------------------------------------------------------------
+# ECR repository bootstrap
+# ------------------------------------------------------------
 
-TERRAFORM_STATE="$(terraform -chdir="${TERRAFORM_DIR}" state list)"
+echo
+echo "==> Ensuring ECR repositories exist"
 
-ensure_ecr_repository() {
-    local service_name="$1"
-    local repository_name="$2"
-    local resource_address="aws_ecr_repository.service[\"${service_name}\"]"
+# The ECR repositories are managed by Terraform, but we need
+# them before we can build and push the application images.
+#
+# Therefore bootstrap only the ECR resources first.
 
-    echo "DEBUG service_name=[${service_name}]"
-    echo "DEBUG resource_address=[${resource_address}]"
-    echo "DEBUG state:"
+terraform -chdir="${TERRAFORM_DIR}" apply \
+    -auto-approve \
+    -target='aws_ecr_repository.service' \
+    -var="product_image_tag=${IMAGE_TAG}" \
+    -var="customer_image_tag=${IMAGE_TAG}" \
+    -var="order_image_tag=${IMAGE_TAG}" \
+    -var="inventory_image_tag=${IMAGE_TAG}" \
+    -var="gateway_image_tag=${IMAGE_TAG}" \
+    -var="authentication_image_tag=${IMAGE_TAG}" \
+    -var="environment=dev"
 
-    if printf '%s\n' "${TERRAFORM_STATE}" | grep -Fqx "${resource_address}"; then
-        echo "  ${service_name}: already managed by Terraform"
-        return
-    fi
 
-    if aws ecr describe-repositories \
-        --repository-names "${repository_name}" \
-        --region "${AWS_REGION}" \
-        >/dev/null 2>&1; then
-
-        echo "  ${service_name}: importing existing ECR repository"
-
-        terraform -chdir="${TERRAFORM_DIR}" import \
-            -var="product_image_tag=${IMAGE_TAG}" \
-            -var="customer_image_tag=${IMAGE_TAG}" \
-            -var="order_image_tag=${IMAGE_TAG}" \
-            -var="gateway_image_tag=${IMAGE_TAG}" \
-            -var="authentication_image_tag=${IMAGE_TAG}" \
-            "${resource_address}" \
-            "${repository_name}"
-
-    else
-        echo "  ${service_name}: repository does not exist; Terraform will create it"
-    fi
-}
-
-echo "Checking ECR repositories..."
-echo ""
-
-ensure_ecr_repository \
-    "authentication" \
-    "pc-parts-store-authentication-service"
-
-ensure_ecr_repository \
-    "customer" \
-    "pc-parts-store-customer-service"
-
-ensure_ecr_repository \
-    "gateway" \
-    "pc-parts-store-api-gateway"
-
-ensure_ecr_repository \
-    "inventory" \
-    "pc-parts-store-inventory-service"
-
-ensure_ecr_repository \
-    "order" \
-    "pc-parts-store-order-service"
-
-ensure_ecr_repository \
-    "payment" \
-    "pc-parts-store-payment-service"
-
-ensure_ecr_repository \
-    "product" \
-    "pc-parts-store-product-service"
-
-ensure_ecr_repository \
-    "shipping" \
-    "pc-parts-store-shipping-service"
-
-echo ""
-
-# ----------------------------------------
-# Backend services
-# ----------------------------------------
+# ------------------------------------------------------------
+# Build and push services
+# ------------------------------------------------------------
 
 deploy_service() {
     local service_name="$1"
@@ -133,29 +71,30 @@ deploy_service() {
     local service_dir="${API_DIR}/${service_name}"
     local repository_url="${ECR_REGISTRY}/${repository_name}"
 
+    echo
     echo "========================================"
-    echo "Deploying ${service_name}"
+    echo " Deploying ${service_name}"
     echo "========================================"
-    echo ""
 
-    echo "Building JAR..."
-    mvn -f "${API_DIR}/pom.xml" -pl "${service_name}" -am clean package
+    echo "==> Building Maven module"
 
-    echo ""
-    echo "Building Docker image..."
+    mvn -f "${API_DIR}/pom.xml" \
+        -pl "${service_name}" \
+        -am \
+        clean package
+
+    echo "==> Building Docker image"
+
     docker build \
         --platform linux/arm64 \
         -t "${repository_url}:${IMAGE_TAG}" \
         "${service_dir}"
 
-    echo ""
-    echo "Pushing Docker image..."
-    docker push "${repository_url}:${IMAGE_TAG}"
+    echo "==> Pushing Docker image"
 
-    echo ""
+    docker push "${repository_url}:${IMAGE_TAG}"
 }
 
-# Backend services currently deployed.
 
 deploy_service \
     "product-service" \
@@ -174,65 +113,96 @@ deploy_service \
     "pc-parts-store-order-service"
 
 deploy_service \
+    "inventory-service" \
+    "pc-parts-store-inventory-service"
+
+deploy_service \
     "api-gateway" \
     "pc-parts-store-api-gateway"
 
+
+# ------------------------------------------------------------
+# Terraform infrastructure deployment
+# ------------------------------------------------------------
+
+echo
+echo "========================================"
+echo " Applying infrastructure"
+echo "========================================"
+
 terraform -chdir="${TERRAFORM_DIR}" apply \
+    -auto-approve \
+    -var="environment=dev" \
     -var="product_image_tag=${IMAGE_TAG}" \
-    -var="authentication_image_tag=${IMAGE_TAG}" \
     -var="customer_image_tag=${IMAGE_TAG}" \
     -var="order_image_tag=${IMAGE_TAG}" \
-    -var="gateway_image_tag=${IMAGE_TAG}"
+    -var="inventory_image_tag=${IMAGE_TAG}" \
+    -var="gateway_image_tag=${IMAGE_TAG}" \
+    -var="authentication_image_tag=${IMAGE_TAG}"
 
-echo "========================================"
-echo "Bootstrapping databases"
-echo "========================================"
-echo ""
+
+# ------------------------------------------------------------
+# Database bootstrap
+# ------------------------------------------------------------
+
+echo
+echo "==> Bootstrapping databases"
 
 "${SCRIPT_DIR}/bootstrap-db.sh"
 
-echo ""
 
-
-
-BUCKET_NAME="$(terraform -chdir="${TERRAFORM_DIR}" output -raw bucket_name)"
-DISTRIBUTION_ID="$(terraform -chdir="${TERRAFORM_DIR}" output -raw cloudfront_distribution_id)"
-
-# ----------------------------------------
+# ------------------------------------------------------------
 # Frontend
-# ----------------------------------------
+# ------------------------------------------------------------
 
+echo
 echo "========================================"
-echo "Building frontend"
+echo " Building frontend"
 echo "========================================"
-echo ""
 
 cd "${UI_DIR}"
 
+npm ci
 npm run build
 
-echo ""
-echo "Uploading files to S3 bucket: ${BUCKET_NAME}"
-echo ""
 
-aws s3 sync dist/ "s3://${BUCKET_NAME}" --delete
+FRONTEND_BUCKET="$(
+    terraform -chdir="${TERRAFORM_DIR}" output -raw bucket_name
+)"
 
-echo ""
-echo "Creating CloudFront invalidation..."
-echo ""
+echo "==> Uploading frontend to s3://${FRONTEND_BUCKET}"
+
+aws s3 sync \
+    dist/ \
+    "s3://${FRONTEND_BUCKET}/" \
+    --delete \
+    --region "${AWS_REGION}"
+
+
+# ------------------------------------------------------------
+# CloudFront
+# ------------------------------------------------------------
+
+echo
+echo "==> Invalidating CloudFront cache"
+
+CLOUDFRONT_DISTRIBUTION_ID="$(
+    terraform -chdir="${TERRAFORM_DIR}" output -raw cloudfront_distribution_id
+)"
 
 aws cloudfront create-invalidation \
-    --distribution-id "${DISTRIBUTION_ID}" \
+    --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
     --paths "/*"
 
-echo ""
+
+# ------------------------------------------------------------
+# Complete
+# ------------------------------------------------------------
+
+echo
 echo "========================================"
-echo "Deployment complete!"
+echo " Deployment complete"
 echo "========================================"
-echo ""
-
-echo "Frontend URL:"
-terraform -chdir="${TERRAFORM_DIR}" output frontend_url
-
-echo ""
-
+echo
+echo "Image tag: ${IMAGE_TAG}"
+echo

@@ -27,7 +27,7 @@ resource "aws_ecs_task_definition" "db_bootstrap" {
       environment = [
         {
           name  = "PGHOST"
-          value = aws_db_instance.postgres.address
+          value = data.terraform_remote_state.persistent.outputs.rds_endpoint
         },
         {
           name  = "PGPORT"
@@ -50,7 +50,7 @@ resource "aws_ecs_task_definition" "db_bootstrap" {
       secrets = [
         {
           name      = "PGPASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.rds_master.arn}:password::"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
         }
       ]
 
@@ -120,8 +120,4 @@ resource "aws_ecs_task_definition" "db_bootstrap" {
   tags = {
     Name = "${local.resource_prefix}-db-bootstrap"
   }
-
-  depends_on = [
-    aws_db_instance.postgres
-  ]
 }

@@ -7,6 +7,4 @@ locals {
     Environment = var.environment
     ManagedBy   = "Terraform"
   }
-
-  frontend_bucket_name = var.bucket_name
 }
