@@ -67,6 +67,10 @@ resource "aws_instance" "management" {
 
   iam_instance_profile = aws_iam_instance_profile.management.name
 
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = {
     Name = "${local.resource_prefix}-management"
   }
