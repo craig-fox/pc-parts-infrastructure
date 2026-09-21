@@ -108,9 +108,9 @@ resource "aws_vpc_security_group_ingress_rule" "ecs_from_ecs" {
   security_group_id            = aws_security_group.ecs.id
   referenced_security_group_id = aws_security_group.ecs.id
   ip_protocol                  = "tcp"
-  from_port                   = 8080
-  to_port                     = 8080
-  description                 = "Allow ECS services to communicate with each other."
+  from_port                    = 8080
+  to_port                      = 8080
+  description                  = "Allow ECS services to communicate with each other."
 }
 
 # Fargate definition for product-service
@@ -792,5 +792,206 @@ resource "aws_service_discovery_service" "order" {
 
   tags = {
     Name = "${local.resource_prefix}-order-service-discovery"
+  }
+}
+
+resource "aws_ecs_task_definition" "shipping" {
+  family                   = "${local.resource_prefix}-shipping-service"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+
+  cpu    = 256
+  memory = 512
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "shipping-service"
+      image     = "${aws_ecr_repository.service["shipping"].repository_url}:${var.shipping_image_tag}"
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "SPRING_PROFILES_ACTIVE"
+          value = "prod"
+        },
+        {
+          name  = "SPRING_DATASOURCE_URL"
+          value = "jdbc:postgresql://${data.terraform_remote_state.persistent.outputs.rds_endpoint}:5432/shippingdb"
+        },
+        {
+          name  = "SERVER_PORT"
+          value = "8080"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "SPRING_DATASOURCE_USERNAME"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:username::"
+        },
+        {
+          name      = "SPRING_DATASOURCE_PASSWORD"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = data.terraform_remote_state.persistent.outputs.jwt_secret_arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "shipping-service"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${local.resource_prefix}-shipping-service"
+  }
+}
+
+
+resource "aws_ecs_service" "shipping" {
+  name            = "${local.resource_prefix}-shipping-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.shipping.arn
+
+  desired_count = 1
+  launch_type   = "FARGATE"
+
+  network_configuration {
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.shipping.arn
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-shipping-service"
+  }
+}
+
+resource "aws_ecs_task_definition" "payment" {
+  family                   = "${local.resource_prefix}-payment-service"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+
+  cpu    = 256
+  memory = 512
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "payment-service"
+      image     = "${aws_ecr_repository.service["payment"].repository_url}:${var.payment_image_tag}"
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "SPRING_PROFILES_ACTIVE"
+          value = "prod"
+        },
+        {
+          name  = "SPRING_DATASOURCE_URL"
+          value = "jdbc:postgresql://${data.terraform_remote_state.persistent.outputs.rds_endpoint}:5432/paymentdb"
+        },
+        {
+          name  = "SERVER_PORT"
+          value = "8080"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "SPRING_DATASOURCE_USERNAME"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:username::"
+        },
+        {
+          name      = "SPRING_DATASOURCE_PASSWORD"
+          valueFrom = "${data.terraform_remote_state.persistent.outputs.rds_secret_arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = data.terraform_remote_state.persistent.outputs.jwt_secret_arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "payment-service"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${local.resource_prefix}-payment-service"
+  }
+}
+
+resource "aws_ecs_service" "payment" {
+  name            = "${local.resource_prefix}-payment-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.payment.arn
+
+  desired_count = 1
+  launch_type   = "FARGATE"
+
+  network_configuration {
+    subnets          = data.terraform_remote_state.persistent.outputs.private_subnet_ids
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.payment.arn
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-payment-service"
   }
 }

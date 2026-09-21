@@ -55,6 +55,8 @@ terraform -chdir="${TERRAFORM_DIR}" apply \
     -var="customer_image_tag=${IMAGE_TAG}" \
     -var="order_image_tag=${IMAGE_TAG}" \
     -var="inventory_image_tag=${IMAGE_TAG}" \
+    -var="shipping_image_tag=${IMAGE_TAG}" \
+    -var="payment_image_tag=${IMAGE_TAG}" \
     -var="gateway_image_tag=${IMAGE_TAG}" \
     -var="authentication_image_tag=${IMAGE_TAG}" \
     -var="environment=dev"
@@ -117,6 +119,14 @@ deploy_service \
     "pc-parts-store-inventory-service"
 
 deploy_service \
+    "shipping-service" \
+    "pc-parts-store-shipping-service"
+
+deploy_service \
+    "payment-service" \
+    "pc-parts-store-payment-service"
+
+deploy_service \
     "api-gateway" \
     "pc-parts-store-api-gateway"
 
@@ -137,6 +147,8 @@ terraform -chdir="${TERRAFORM_DIR}" apply \
     -var="customer_image_tag=${IMAGE_TAG}" \
     -var="order_image_tag=${IMAGE_TAG}" \
     -var="inventory_image_tag=${IMAGE_TAG}" \
+    -var="shipping_image_tag=${IMAGE_TAG}" \
+    -var="payment_image_tag=${IMAGE_TAG}" \
     -var="gateway_image_tag=${IMAGE_TAG}" \
     -var="authentication_image_tag=${IMAGE_TAG}"
 
@@ -155,29 +167,7 @@ echo "==> Bootstrapping databases"
 # Frontend
 # ------------------------------------------------------------
 
-echo
-echo "========================================"
-echo " Building frontend"
-echo "========================================"
-
-cd "${UI_DIR}"
-
-npm ci
-npm run build
-
-
-FRONTEND_BUCKET="$(
-    terraform -chdir="${TERRAFORM_DIR}" output -raw bucket_name
-)"
-
-echo "==> Uploading frontend to s3://${FRONTEND_BUCKET}"
-
-aws s3 sync \
-    dist/ \
-    "s3://${FRONTEND_BUCKET}/" \
-    --delete \
-    --region "${AWS_REGION}"
-
+"${SCRIPT_DIR}/deploy-frontend.sh"
 
 # ------------------------------------------------------------
 # CloudFront

@@ -1,7 +1,7 @@
 resource "aws_service_discovery_private_dns_namespace" "main" {
   name        = "${var.project_name}.${var.environment}"
   description = "Private service discovery namespace for ${var.project_name} ${var.environment}."
-  vpc = data.terraform_remote_state.persistent.outputs.vpc_id
+  vpc         = data.terraform_remote_state.persistent.outputs.vpc_id
 
   tags = {
     Name = "${local.resource_prefix}-service-discovery"
@@ -47,3 +47,42 @@ resource "aws_service_discovery_service" "inventory" {
     Name = "${local.resource_prefix}-inventory-service-discovery"
   }
 }
+
+resource "aws_service_discovery_service" "shipping" {
+  name = "shipping-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-shipping-service-discovery"
+  }
+}
+
+resource "aws_service_discovery_service" "payment" {
+  name = "payment-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  tags = {
+    Name = "${local.resource_prefix}-payment-service-discovery"
+  }
+}
+
