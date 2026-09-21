@@ -10,6 +10,7 @@ TASK_DEFINITION="pc-parts-store-frontend-dev-db-bootstrap"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TERRAFORM_DIR="${INFRA_DIR}/terraform"
+PERSISTENT_TERRAFORM_DIR="${TERRAFORM_DIR}/persistent"
 
 echo "========================================"
 echo "Bootstrapping databases"
@@ -18,12 +19,16 @@ echo ""
 
 echo "Reading current infrastructure IDs from Terraform..."
 
-SUBNETS_JSON=$(terraform -chdir="${TERRAFORM_DIR}" output -json private_subnet_ids)
+SUBNETS_JSON=$(terraform -chdir="${PERSISTENT_TERRAFORM_DIR}" output -json private_subnet_ids)
 
 SUBNET_1=$(echo "${SUBNETS_JSON}" | jq -r '.[0]')
 SUBNET_2=$(echo "${SUBNETS_JSON}" | jq -r '.[1]')
 
-SECURITY_GROUP=$(terraform -chdir="${TERRAFORM_DIR}" output -raw ecs_security_group_id)
+SECURITY_GROUP=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=pc-parts-store-frontend-dev-ecs-sg" \
+  --region "$REGION" \
+  --query 'SecurityGroups[0].GroupId' \
+  --output text)
 
 echo "Private subnets:"
 echo "  ${SUBNET_1}"

@@ -63,3 +63,12 @@ variable "authentication_image_tag" {
   type        = string
 }
 
+variable "shipping_image_tag" {
+  description = "Docker image tag for shipping-service."
+  type        = string
+}
+
+variable "payment_image_tag" {
+  description = "Docker image tag for payment-service."
+  type        = string
+}

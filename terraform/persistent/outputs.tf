@@ -42,3 +42,5 @@ output "nat_gateway_id" {
   description = "ID of the NAT gateway used by private subnets."
   value       = aws_nat_gateway.main.id
 }
+
+
