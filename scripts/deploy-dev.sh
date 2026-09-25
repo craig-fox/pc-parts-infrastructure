@@ -40,26 +40,59 @@ aws ecr get-login-password \
 # ECR repository bootstrap
 # ------------------------------------------------------------
 
+
 echo
 echo "==> Ensuring ECR repositories exist"
 
-# The ECR repositories are managed by Terraform, but we need
-# them before we can build and push the application images.
-#
-# Therefore bootstrap only the ECR resources first.
+# ECR repositories are retained when the development
+# infrastructure is destroyed. If they were removed from
+# Terraform state during teardown, import them back into
+# state before running the ECR bootstrap apply.
+
+TERRAFORM_IMAGE_VARS=(
+    "-var=product_image_tag=${IMAGE_TAG}"
+    "-var=customer_image_tag=${IMAGE_TAG}"
+    "-var=order_image_tag=${IMAGE_TAG}"
+    "-var=inventory_image_tag=${IMAGE_TAG}"
+    "-var=shipping_image_tag=${IMAGE_TAG}"
+    "-var=payment_image_tag=${IMAGE_TAG}"
+    "-var=gateway_image_tag=${IMAGE_TAG}"
+    "-var=authentication_image_tag=${IMAGE_TAG}"
+    "-var=environment=dev"
+)
+
+ECR_REPOSITORIES=(
+    "gateway:pc-parts-store-api-gateway"
+    "authentication:pc-parts-store-authentication-service"
+    "customer:pc-parts-store-customer-service"
+    "order:pc-parts-store-order-service"
+    "product:pc-parts-store-product-service"
+    "inventory:pc-parts-store-inventory-service"
+    "payment:pc-parts-store-payment-service"
+    "shipping:pc-parts-store-shipping-service"
+)
+
+for entry in "${ECR_REPOSITORIES[@]}"; do
+    resource_key="${entry%%:*}"
+    repository_name="${entry#*:}"
+    resource="aws_ecr_repository.service[\"${resource_key}\"]"
+
+    if terraform -chdir="${TERRAFORM_DIR}" state show "${resource}" >/dev/null 2>&1; then
+        echo "  ${repository_name}: already managed by Terraform"
+    else
+        echo "  ${repository_name}: importing existing repository"
+
+        terraform -chdir="${TERRAFORM_DIR}" import \
+            "${TERRAFORM_IMAGE_VARS[@]}" \
+            "${resource}" \
+            "${repository_name}"
+    fi
+done
 
 terraform -chdir="${TERRAFORM_DIR}" apply \
     -auto-approve \
     -target='aws_ecr_repository.service' \
-    -var="product_image_tag=${IMAGE_TAG}" \
-    -var="customer_image_tag=${IMAGE_TAG}" \
-    -var="order_image_tag=${IMAGE_TAG}" \
-    -var="inventory_image_tag=${IMAGE_TAG}" \
-    -var="shipping_image_tag=${IMAGE_TAG}" \
-    -var="payment_image_tag=${IMAGE_TAG}" \
-    -var="gateway_image_tag=${IMAGE_TAG}" \
-    -var="authentication_image_tag=${IMAGE_TAG}" \
-    -var="environment=dev"
+    "${TERRAFORM_IMAGE_VARS[@]}"
 
 
 # ------------------------------------------------------------

@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TERRAFORM_DIR="${INFRA_DIR}/terraform/application"
 
+
 echo ""
 echo "========================================"
 echo "PC Parts Store - Destroy Development"
@@ -48,19 +49,36 @@ echo ""
 echo "Removing ECR repositories from Terraform state..."
 echo ""
 
-terraform -chdir="${TERRAFORM_DIR}" state list \
-    | grep '^aws_ecr_repository.service\[' \
-    | while read -r resource; do
+ECR_RESOURCES="$(terraform -chdir="${TERRAFORM_DIR}" state list \
+    | grep '^aws_ecr_repository.service\[' || true)"
+
+if [[ -n "${ECR_RESOURCES}" ]]; then
+    while read -r resource; do
         echo "  Retaining ${resource}"
         terraform -chdir="${TERRAFORM_DIR}" state rm "${resource}"
-    done
+    done <<< "${ECR_RESOURCES}"
+else
+    echo "  No ECR repositories found in Terraform state."
+fi
 
 echo ""
 echo "Destroying remaining development environment..."
 echo ""
 
+TERRAFORM_IMAGE_VARS=(
+    "-var=product_image_tag=destroy"
+    "-var=customer_image_tag=destroy"
+    "-var=order_image_tag=destroy"
+    "-var=inventory_image_tag=destroy"
+    "-var=shipping_image_tag=destroy"
+    "-var=payment_image_tag=destroy"
+    "-var=gateway_image_tag=destroy"
+    "-var=authentication_image_tag=destroy"
+    "-var=environment=dev"
+)
+
 terraform -chdir="${TERRAFORM_DIR}" destroy \
-    -var="environment=dev"
+    "${TERRAFORM_IMAGE_VARS[@]}"
 
 echo ""
 echo "========================================"
