@@ -15,6 +15,7 @@ resource "aws_ecs_cluster" "main" {
 resource "aws_iam_role" "ecs_execution" {
   name = "${local.resource_prefix}-ecs-execution-role"
 
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
 
@@ -132,7 +133,7 @@ resource "aws_ecs_task_definition" "product" {
   container_definitions = jsonencode([
     {
       name  = "product-service"
-      image = "${aws_ecr_repository.service["product"].repository_url}:${var.product_image_tag}"
+      image = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["product"]}:${var.product_image_tag}"
 
       essential = true
 
@@ -232,7 +233,7 @@ resource "aws_ecs_task_definition" "inventory" {
   container_definitions = jsonencode([
     {
       name  = "inventory-service"
-      image = "${aws_ecr_repository.service["inventory"].repository_url}:${var.inventory_image_tag}"
+      image = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["inventory"]}:${var.inventory_image_tag}"
 
       essential = true
 
@@ -334,7 +335,7 @@ resource "aws_ecs_task_definition" "gateway" {
   container_definitions = jsonencode([
     {
       name      = "api-gateway"
-      image     = "${aws_ecr_repository.service["gateway"].repository_url}:${var.gateway_image_tag}"
+      image     = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["gateway"]}:${var.gateway_image_tag}"
       essential = true
 
       portMappings = [
@@ -430,7 +431,7 @@ resource "aws_ecs_task_definition" "customer" {
   container_definitions = jsonencode([
     {
       name  = "customer-service"
-      image = "${aws_ecr_repository.service["customer"].repository_url}:${var.customer_image_tag}"
+      image = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["customer"]}:${var.customer_image_tag}"
 
       essential = true
 
@@ -546,7 +547,7 @@ resource "aws_ecs_task_definition" "authentication" {
   container_definitions = jsonencode([
     {
       name  = "authentication-service"
-      image = "${aws_ecr_repository.service["authentication"].repository_url}:${var.authentication_image_tag}"
+      image = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["authentication"]}:${var.authentication_image_tag}"
 
       essential = true
 
@@ -672,7 +673,7 @@ resource "aws_ecs_task_definition" "order" {
   container_definitions = jsonencode([
     {
       name  = "order-service"
-      image = "${aws_ecr_repository.service["order"].repository_url}:${var.order_image_tag}"
+      image = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["order"]}:${var.order_image_tag}"
 
       essential = true
 
@@ -814,7 +815,7 @@ resource "aws_ecs_task_definition" "shipping" {
   container_definitions = jsonencode([
     {
       name      = "shipping-service"
-      image     = "${aws_ecr_repository.service["shipping"].repository_url}:${var.shipping_image_tag}"
+      image     = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["shipping"]}:${var.shipping_image_tag}"
       essential = true
 
       portMappings = [
@@ -915,7 +916,7 @@ resource "aws_ecs_task_definition" "payment" {
   container_definitions = jsonencode([
     {
       name      = "payment-service"
-      image     = "${aws_ecr_repository.service["payment"].repository_url}:${var.payment_image_tag}"
+      image     = "${data.terraform_remote_state.persistent.outputs.ecr_repository_urls["payment"]}:${var.payment_image_tag}"
       essential = true
 
       portMappings = [

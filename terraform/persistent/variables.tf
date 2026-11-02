@@ -26,3 +26,9 @@ variable "component" {
   type        = string
   default     = "frontend"
 }
+
+variable "rds_deletion_protection" {
+  description = "Protect the RDS instance from accidental deletion."
+  type        = bool
+  default     = true
+}
