@@ -50,12 +50,8 @@ resource "aws_db_instance" "postgres" {
   auto_minor_version_upgrade = true
   apply_immediately          = true
 
-  deletion_protection = true
+  deletion_protection = var.rds_deletion_protection
   skip_final_snapshot = true
-
-  lifecycle {
-    prevent_destroy = true
-  }
 
   tags = {
     Name = "${local.resource_prefix}-postgres"
